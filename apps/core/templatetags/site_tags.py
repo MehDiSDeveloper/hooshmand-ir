@@ -8,10 +8,14 @@ and write a date the way the active language writes dates.
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 
 import markdown as md
 from django import template
+from django.conf import settings
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
 from django.utils.safestring import mark_safe
 from django.utils.translation import get_language
 
@@ -50,6 +54,24 @@ def _lang() -> str:
 @register.simple_tag
 def t(key: str) -> str:
     return lookup(key)
+
+
+# ── static files ───────────────────────────────────────────────────────────
+@register.simple_tag
+def static_v(path: str) -> str:
+    """{% static_v 'css/site.css' %} — `static`, plus `?v=<mtime>` in DEBUG.
+
+    The site is served through a Cloudflare tunnel from the DEBUG container,
+    where the file name is not hashed, so Cloudflare and the phone keep the old
+    stylesheet. The mtime changes the URL on every save. Outside DEBUG the
+    manifest already puts a hash in the name, so nothing is appended.
+    """
+    url = static(path)
+    if settings.DEBUG:
+        found = finders.find(path)
+        if found:
+            url += f"?v={int(os.path.getmtime(found))}"
+    return url
 
 
 # ── translated model fields ────────────────────────────────────────────────

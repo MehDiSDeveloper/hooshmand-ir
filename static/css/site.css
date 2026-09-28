@@ -367,8 +367,10 @@
 /* clip, not hidden: the hero's aurora deliberately bleeds past the viewport
    on both sides, and `overflow-x: hidden` on <body> alone did not stop the
    document from growing to fit it — which showed up as the whole page
-   shifted sideways in RTL. */
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: clip; scroll-padding-top: calc(var(--header-h) + 12px); }
+   shifted sideways in RTL. `hidden` first is the fallback for browsers
+   without `clip` (Safari before 16); on <html> it propagates to the viewport,
+   so it does not break the sticky header the way it would on <body>. */
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: hidden; overflow-x: clip; scroll-padding-top: calc(var(--header-h) + 12px); }
 html.is-locked { overflow: hidden; }
 
 body {
@@ -843,7 +845,14 @@ body[dir="rtl"] .hdr-progress span { transform-origin: right center; }
 /* ══════════════════════════════════════════════════════════════════════════
    5 · SECTION FURNITURE
    ══════════════════════════════════════════════════════════════════════════ */
-main { display: block; min-height: 60vh; }
+/* `overflow-x: clip` on <main> as well as <html>. A phone browser sizes its
+   layout viewport to the widest thing on the page BEFORE the root's clip
+   applies, so a decoration that pokes out — the portrait's blurred halo, whose
+   box grows by √2 as it turns — made the page wider than a 375px phone and
+   swayed it sideways on the halo's 16-second cycle. Clipped here, nothing in
+   the content can widen the page. `clip` makes no scroll container, so sticky
+   children still stick, and the vertical bleed behind the header survives. */
+main { display: block; min-height: 60vh; overflow-x: clip; }
 .sec { padding-block: var(--sec); position: relative; }
 .sec + .sec:not(.sec-band) { padding-block-start: 0; }
 .sec-band + .sec { padding-block-start: var(--sec); }
@@ -1888,6 +1897,18 @@ body[dir="rtl"] .toast { padding: 10px 12px 10px 18px; }
 @keyframes amb3 { 50% { translate: 10vmax -14vmax; scale: 1.18; } 100% { translate: -8vmax -6vmax; scale: .95; } }
 @keyframes amb4 { 50% { translate: 16vmax -8vmax; scale: .9; } 100% { translate: 6vmax -18vmax; scale: 1.12; } }
 @keyframes ambTurn { to { rotate: 70deg; scale: 1.1; } }
+
+/* Phones and tablets: the same page, a lighter engine. Everything below is
+   paint a small GPU pays for every frame — the drifting lights and their
+   scroll-driven turn (layers bigger than the screen), the canvas mask, the
+   blurred halo turning, and frosted glass on chips that bob. The look stays;
+   the lights and the halo simply hold still, and the glass becomes a fill. */
+@media (hover: none), (max-width: 700px) {
+  .ambient-field, .ambient-field i { animation: none !important; will-change: auto; }
+  .ambient-net { -webkit-mask-image: none; mask-image: none; }
+  .portrait-ring { animation: none; }
+  .float-chip, .portrait-dock { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

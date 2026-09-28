@@ -666,6 +666,11 @@
     var nodes = [], glyphs = [], packets = [], ripples = [];
     var pointer = { x: -1e4, y: -1e4 };
     var running = false, last = 0, nextPacket = 0;
+    // On a touch device the network runs lighter: fewer nodes, ~30 frames a
+    // second, and it rests while the page is being scrolled, so the scroll
+    // itself gets the whole frame budget.
+    var lite = !finePointer || window.innerWidth < 700;
+    var scrolling = false, scrollTimer;
 
     function rnd(a, b) { return a + Math.random() * (b - a); }
     function rgba(c, a) { return "rgba(" + colors[c] + "," + a.toFixed(3) + ")"; }
@@ -692,7 +697,7 @@
       w = window.innerWidth; h = window.innerHeight;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-      var nodeCount = Math.round(Math.max(22, Math.min(70, w * h / 21000)));
+      var nodeCount = Math.round(Math.max(22, Math.min(lite ? 30 : 70, w * h / 21000)));
       var glyphCount = w < 700 ? 6 : 14;
       while (nodes.length < nodeCount) nodes.push(makeNode());
       nodes.length = nodeCount;
@@ -790,6 +795,7 @@
 
     function frame(now) {
       if (!running) return;
+      if (lite && (scrolling || (last && now - last < 32))) { requestAnimationFrame(frame); return; }
       var dt = Math.min(48, now - (last || now)) / 16.67;
       last = now;
       step(dt, now);
@@ -820,6 +826,13 @@
     if (finePointer) {
       window.addEventListener("pointermove", function (e) { pointer.x = e.clientX; pointer.y = e.clientY; }, { passive: true });
       document.addEventListener("pointerleave", function () { pointer.x = pointer.y = -1e4; });
+    }
+    if (lite) {
+      window.addEventListener("scroll", function () {
+        scrolling = true;
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function () { scrolling = false; last = 0; }, 140);
+      }, { passive: true });
     }
     document.addEventListener("visibilitychange", function () { if (document.hidden) stop(); else start(); });
     start();
