@@ -10,10 +10,9 @@ there is nothing to translate about a .vcf file.
 
 from django.conf import settings
 from django.conf.urls.i18n import i18n_patterns
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from apps.core import views as core_views
 from apps.core.sitemaps import SITEMAPS
@@ -38,8 +37,12 @@ urlpatterns += i18n_patterns(
     prefix_default_language=False,
 )
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG or settings.SERVE_MEDIA:
+    # Outside i18n_patterns, and outside DEBUG too: one container has no proxy
+    # in front of it to serve uploads. DJANGO_SERVE_MEDIA=0 hands them to one.
+    urlpatterns += [
+        re_path(r"^media/(?P<path>.+)$", core_views.media, name="media"),
+    ]
 
 handler404 = "apps.core.views.not_found"
 handler500 = "apps.core.views.server_error"

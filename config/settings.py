@@ -17,6 +17,25 @@ if not DATA_DIR.is_absolute():
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _load_dotenv(path: Path) -> None:
+    """Read KEY=VALUE lines from .env into the environment, without overriding.
+
+    Docker passes .env through `env_file`; runserver has nothing that does, so
+    without this a local run would fall back to the (now safe) DEBUG=0 default.
+    """
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(BASE_DIR / ".env")
+
+
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -31,7 +50,8 @@ def _env_list(name: str) -> list[str]:
 
 # ── Core ───────────────────────────────────────────────────────────────────
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
-DEBUG = _env_bool("DJANGO_DEBUG", default=True)
+# Off unless asked for: a forgotten variable must never ship tracebacks.
+DEBUG = _env_bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS") or (
     ["localhost", "127.0.0.1", "[::1]"] if DEBUG else []
 )
@@ -153,6 +173,9 @@ STATIC_ROOT = DATA_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = DATA_DIR / "media"
+# One container has no front proxy to serve uploads, so Django serves them
+# outside DEBUG too (apps.core.views.media). Set 0 when nginx/Caddy does it.
+SERVE_MEDIA = _env_bool("DJANGO_SERVE_MEDIA", default=True)
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -177,6 +200,8 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # The container's health probe speaks plain HTTP from inside.
+    SECURE_REDIRECT_EXEMPT = [r"^healthz$"]
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 

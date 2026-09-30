@@ -186,6 +186,20 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+def media(request, path: str):
+    """Uploads, served by Django when no front proxy does it (SERVE_MEDIA).
+
+    `static.serve` joins the path safely and answers If-Modified-Since; this
+    adds a cache lifetime. Uploads keep their name when replaced, so a day,
+    not a year.
+    """
+    from django.views.static import serve
+
+    response = serve(request, path, document_root=settings.MEDIA_ROOT)
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 class PostFeed(Feed):
     link = "/blog/"
 

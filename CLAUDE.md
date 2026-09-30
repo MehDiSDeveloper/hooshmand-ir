@@ -373,6 +373,54 @@ reusing `site.css`'s tokens, and the stock admin can then be switched off in
 one line. Until then, do not build admin-shaped branches into the public pages
 — the two audiences are different and the panel is a screen of its own.
 
+## Production: where and how this site is live
+
+> A deploy changes the **live** site. Ask the user before deploying.
+
+| | |
+|---|---|
+| URL | https://royahooshmand.ir (`www.` and `http://` redirect here) |
+| Server | VPS `91.207.18.218` (Webdade, Ubuntu 24.04). From Windows: `ssh vps` → user `deploy` (key login, passwordless sudo, in the `docker` group) |
+| App dir | `/srv/hooshmand-ir/`: code (replaced on every deploy), `.env` (production secrets, only on the server), `data/` (the volume; deploy never touches it) |
+| Container | published on `127.0.0.1:8005` → 8000. Only Caddy is public (ports 80/443) |
+| Reverse proxy | Caddy on the host, automatic Let's Encrypt HTTPS. Config source `G:\Repos\devops\server\caddy\Caddyfile`, applied with `bash /g/Repos/devops/caddy-apply.sh` |
+| Runbook | `G:\Repos\devops\RUNBOOK.md` (server layout, logs, restart, backups, DNS). Keep it updated after any server change |
+
+**Deploy** (Windows PowerShell; takes the **local working copy**, uncommitted changes included, git is not involved):
+
+```
+G:\Repos\devops\deploy.ps1 hooshmand-ir
+```
+
+It uploads the repo without `.git`, `.venv`, `node_modules`, `.next`, `.env*`, `data/` and the dev-only compose file,
+strips CRLF from `*.sh`, rsyncs into `/srv/hooshmand-ir/` (keeping `.env` and `data/`), runs `docker compose up -d --build`
+and waits for a 200 on `http://127.0.0.1:8005/healthz`. Migrations run in the container's start script, so there is no manual step.
+
+**Compose on the server.** The server `.env` sets `COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml`, so a plain `docker compose …` in `/srv/hooshmand-ir` uses the prod override. `docker-compose.prod.yml` is not in this repo; it lives in `G:\Repos\devops\server\hooshmand-ir\` and is shipped by `deploy.sh`. It replaces the port with `127.0.0.1:8005`. `docker-compose.override.yml` is dev-only and is never uploaded.
+If you change the service name, the container port or the published port here, update `G:\Repos\devops\`
+(`deploy.sh`, `server/hooshmand-ir/`, the Caddyfile) in the same change, or the live site breaks.
+
+**Production environment** lives only in `/srv/hooshmand-ir/.env` (mode 600). A new variable the code needs must be added there too,
+not only to `.env.example`. Change a key without opening the file (it backs up `.env` and re-creates the container):
+`printf 'KEY=value\n' | bash /g/Repos/devops/env-set.sh hooshmand-ir`. Never print, copy into chat or commit its values.
+
+**Look at the live app:**
+
+```
+ssh vps "cd /srv/hooshmand-ir && docker compose ps && docker compose logs --tail 100"
+```
+
+**Backups:** `data/` is backed up every night (03:30) to `/var/backups/apps/` on the server and pulled daily to `G:\apps backup` on Windows; 14 days are kept in each place. How to restore: RUNBOOK → Backups.
+
+**Specific to this app:**
+
+- Uploads (`/media/`) are served by Django itself (`DJANGO_SERVE_MEDIA` defaults on); Caddy only proxies.
+- Admin user `admin` was created once with `createsuperuser --noinput` from `DJANGO_SUPERUSER_*` in the server `.env`;
+  its password can be changed in the admin afterwards.
+- No bot.
+- The live database started empty on 2026-09-30 with `seed_profile`. **Never run `seed_demo` on the server.**
+- One-off commands: `ssh vps "cd /srv/hooshmand-ir && docker compose exec -T web python manage.py <cmd>"`.
+
 ## Deployment
 
 One container, one process, one volume:
@@ -383,9 +431,16 @@ docker compose up --build     # or: docker build -t hooshmand . && docker run �
 
 `start.sh` is the whole boot: `migrate`, then `collectstatic`, then gunicorn.
 WhiteNoise serves static with a one-year cache and a hashed manifest outside
-`DEBUG`. Uploads under `data/media/` are served by Django in `DEBUG` and by the
-front proxy or WhiteNoise in production — **if uploads 404 on the host, that is
-the thing to check first.**
+`DEBUG`. Uploads under `data/media/` are served by Django in every mode
+(`apps.core.views.media`, one-day cache), because one container has no proxy in
+front of it; set `DJANGO_SERVE_MEDIA=0` when nginx/Caddy serves `/media/`
+instead — **if uploads 404 on the host, that is the thing to check first.**
+
+**`DEBUG` defaults to off.** `settings.py` reads `.env` itself (without
+overriding real environment variables), so `runserver` still gets
+`DJANGO_DEBUG=1` from `.env` locally; a missing variable in production can no
+longer ship tracebacks. `/healthz` is exempt from the HTTPS redirect so the
+container's own plain-HTTP probe works.
 
 Environment variables are documented in `.env.example`. Only two matter:
 `DJANGO_SECRET_KEY` (rotating it logs out every admin session) and
