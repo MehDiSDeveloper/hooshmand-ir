@@ -45,8 +45,9 @@ projects hold 8000–8003 and 8011–8024. This one is **8005** in docker and
 
 Tests live in `tests/` and run with `.venv/Scripts/python manage.py test tests`.
 They are `SimpleTestCase`s so `pytest-django` can pick them up unchanged later.
-So far only the geo-language redirect is covered; the next three worth pinning
-are named at the foot of this file.
+So far the geo-language redirect and the admin's file uploads
+(`test_admin_upload.py`, which uses the database) are covered; the next three
+worth pinning are named at the foot of this file.
 
 ## The shape of the project
 
@@ -367,7 +368,20 @@ both themes without rendering the QR twice.
 ## The admin, and the panel that is coming
 
 `django.contrib.admin` is registered and is the **interim** way to edit
-content. The lightweight custom panel is a later piece of work; when it is
+content.
+
+**Every file field in the admin goes through `UploadWidget`**
+(`apps/content/admin.py`, with `static/js/admin-upload.js` and
+`static/css/admin-upload.css`), because the stock input hides that a chosen
+file is only sent on «ذخیره». It shows the live image as a thumbnail, previews
+the chosen file (name, size) with «منصرف شدم», dims the thumbnail when
+«پاک کردن» is ticked (a new file and "clear" cancel each other, since Django
+refuses both), and keeps a fixed save bar plus a leave-page warning until the
+form is sent. A new admin with a file field sets `formfield_overrides = UPLOADS`,
+and the field needs a `help_text` saying where on the site it shows —
+`tests/test_admin_upload.py` fails otherwise. The Profile form puts the files
+first, has `save_on_top`, and its one-row list redirects straight to the form;
+Project and Post also have `save_on_top`. The lightweight custom panel is a later piece of work; when it is
 built it belongs in `apps/panel/` as its own app with its own templates,
 reusing `site.css`'s tokens, and the stock admin can then be switched off in
 one line. Until then, do not build admin-shaped branches into the public pages
@@ -478,6 +492,9 @@ rewritten:
 - **Every views module that renders a translated field must load `site_tags`.**
   `{% load site_tags %}` at the top; forgetting it is a render-time error, not
   a silent miss.
+- **Every Persian column is required, even one declared `blank=True`.**
+  `@i18n_fields` sets `blank` per language and overwrites the factory's, so a
+  Profile form (or a test posting to it) must fill every `<field>_fa`.
 - **`Profile.save()` forces `pk = 1`.** There is one person on a personal site.
   Do not try to create a second row.
 - **`data/` is in `.gitignore` and `.dockerignore`.** The database is never

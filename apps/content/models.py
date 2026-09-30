@@ -102,8 +102,17 @@ class TimeStamped(models.Model):
 class Profile(Translatable, TimeStamped):
     """Singleton. `Profile.load()` is the only way anything reads it."""
 
-    avatar = models.ImageField(upload_to="profile/", blank=True)
-    resume_file = models.FileField(upload_to="profile/", blank=True)
+    avatar = models.ImageField(
+        upload_to="profile/",
+        blank=True,
+        help_text="The portrait: home hero, about, résumé and the business card, and the "
+        "preview image when a page is shared. Square, at least 700×700 px.",
+    )
+    resume_file = models.FileField(
+        upload_to="profile/",
+        blank=True,
+        help_text="The file behind every «download résumé» button (home, résumé page, footer). PDF.",
+    )
 
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=32, blank=True)
@@ -211,7 +220,13 @@ class Project(Translatable, TimeStamped):
     slug = models.SlugField(max_length=140, unique=True)
     year = models.PositiveIntegerField(null=True, blank=True)
     stack = models.CharField(max_length=200, blank=True, help_text="Comma separated, Latin, e.g. Django, Postgres")
-    cover = models.ImageField(upload_to="projects/", blank=True)
+    cover = models.ImageField(
+        upload_to="projects/",
+        blank=True,
+        help_text="The project's card on the home and projects pages, the top of its own page, "
+        "and the preview image when it is shared. Landscape, about 1600×1000 px; the cards crop "
+        "it, so keep the subject in the middle. Empty shows the pastel cover art.",
+    )
     repo_url = models.URLField(blank=True)
     demo_url = models.URLField(blank=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="projects")
@@ -271,7 +286,12 @@ class Experience(Translatable):
 )
 class Post(Translatable, TimeStamped):
     slug = models.SlugField(max_length=180, unique=True)
-    cover = models.ImageField(upload_to="posts/", blank=True)
+    cover = models.ImageField(
+        upload_to="posts/",
+        blank=True,
+        help_text="The top of the post's page and the preview image when it is shared. "
+        "Landscape, about 1600×900 px.",
+    )
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
     published_at = models.DateTimeField(default=timezone.now)
     is_published = models.BooleanField(default=True)
