@@ -495,6 +495,12 @@ rewritten:
 
 ## Things that will bite
 
+- **Persian text on an `/en/` or `/de/` page is an empty `_en`/`_de`
+  column, not a code bug** — `tr()` falls back to Persian. Never POST part
+  of an admin form from a script: Django saves every field the POST leaves
+  out, unless it has a default, as empty. That is how montazeri-ir and
+  hesam-ir lost their profile's English and German on 2026-09-30. Edit in
+  the admin from a browser (it sends every field) or in `manage.py shell`.
 - **`{# … #}` in a Django template is single-line only.** A multi-line one
   leaks into the rendered page as visible text. Use `{% comment %}` for
   anything over one line — every long comment in `templates/` already does.
